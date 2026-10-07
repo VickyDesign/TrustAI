@@ -27,7 +27,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="app">
       <aside className={`side ${open ? "open" : ""}`} aria-label="Main navigation">
-        <div className="brand"><Logo /><div><b>Plumb</b><small>AI fleet console</small></div></div>
+        <div className="brand"><Logo /><div><b>Trust AI</b><small>Powered by Random Trees</small></div></div>
         <div className="ws" aria-label="Workspace">
           <span className="ws-av">{initials(me.org.name)}</span>
           <span><b>{me.org.name}</b><small>{ROLE_LABEL[me.role]}</small></span>

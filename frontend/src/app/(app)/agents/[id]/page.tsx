@@ -257,7 +257,7 @@ function ConfigTab({ agent, gateway }: { agent: Agent; gateway: string }) {
   const curl = `curl -X POST ${gateway}/${agent.slug}/invoke \\\n  -H "Authorization: Bearer YOUR_GATEWAY_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"input": "Hello", "session_id": "user-123"}'`;
   return (
     <>
-      <section className="card"><div className="card-h"><h2>Gateway endpoint</h2><span className="sub">Send live traffic here so Plumb can apply guardrails and monitor it</span></div>
+      <section className="card"><div className="card-h"><h2>Gateway endpoint</h2><span className="sub">Send live traffic here so Trust AI can apply guardrails and monitor it</span></div>
         <div className="card-b">
           <div className="codebox"><span>POST {gateway}/{agent.slug}/invoke</span><CopyButton text={`${gateway}/${agent.slug}/invoke`} /></div>
           <div className="code" style={{ marginTop: 12 }}><div className="code-h"><span className="dots"><i /><i /><i /></span>Example</div><pre style={{ padding: "12px 16px" }}>{curl}</pre></div>
@@ -293,7 +293,7 @@ function ActivityTab({ id }: { id: string }) {
         {data.length === 0 && <p className="muted">Nothing yet.</p>}
         {data.map((a) => (
           <div className="tl" key={a.id}><span className="tl-ic"><Icon name={ICON[a.kind] ?? "clock"} /></span>
-            <div><b>{a.message}</b><small>{a.actor_name || "Plumb"}</small></div><time>{when(a.created_at)}</time></div>
+            <div><b>{a.message}</b><small>{a.actor_name || "Trust AI"}</small></div><time>{when(a.created_at)}</time></div>
         ))}
       </div>
     </section>

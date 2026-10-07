@@ -85,7 +85,7 @@ function People({ admin, meId, joinCode }: { admin: boolean; meId: string; joinC
         <div className="card-b" style={{ paddingTop: 0 }}>
           <div className="note-box">
             <b style={{ display: "block", color: "var(--fg)", marginBottom: 4 }}>Invite teammates</b>
-            They sign up on the Plumb sign-in page and enter this code. They join as members; change their role here.
+            They sign up on the Trust AI sign-in page and enter this code. They join as members; change their role here.
             {code ? <div className="codebox"><span>{code}</span><CopyButton text={code} /><button className="btn sm" type="button" onClick={rotate}><Icon name="refresh" />New code</button></div>
               : <div style={{ marginTop: 12 }}><button className="btn" type="button" onClick={rotate}><Icon name="plus" />Create invite code</button></div>}
           </div>

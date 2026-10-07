@@ -67,4 +67,4 @@ def check_outbound_url(url: str) -> None:
     for info in infos:
         ip = ipaddress.ip_address(info[4][0])
         if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
-            raise UnsafeURL("This address points to a private network, which Plumb can't call")
+            raise UnsafeURL("This address points to a private network, which Trust AI can't call")

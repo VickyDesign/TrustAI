@@ -54,7 +54,7 @@ export default function LoginPage() {
   return (
     <main className="auth">
       <div className="auth-card">
-        <div className="brand" style={{ padding: 0 }}><Logo /><div><b>Plumb</b><small>AI fleet console</small></div></div>
+        <div className="brand" style={{ padding: 0 }}><Logo /><div><b>Trust AI</b><small>Powered by Random Trees</small></div></div>
         <h1>{mode === "signin" ? "Sign in" : "Create your account"}</h1>
         <p>{mode === "signin" ? "Onboard, evaluate, release, and monitor your AI agents." : "You’ll get your own workspace, or join a team with an invite code."}</p>
         <form onSubmit={submit}>
@@ -69,7 +69,7 @@ export default function LoginPage() {
           <button className="btn pri lg" type="submit" disabled={busy}>{busy && <Spinner />}{mode === "signin" ? "Sign in" : "Create account"}</button>
         </form>
         <p className="switch-mode">
-          {mode === "signin" ? "New to Plumb? " : "Already have an account? "}
+          {mode === "signin" ? "New to Trust AI? " : "Already have an account? "}
           <button className="link-btn" onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(null); }}>
             {mode === "signin" ? "Create an account" : "Sign in"}
           </button>

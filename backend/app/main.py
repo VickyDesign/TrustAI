@@ -66,7 +66,7 @@ async def lifespan(_: FastAPI):
     await db.close_pool()
 
 
-app = FastAPI(title="Plumb API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="Trust AI API", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

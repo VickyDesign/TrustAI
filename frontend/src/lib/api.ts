@@ -33,7 +33,7 @@ export async function api<T = unknown>(path: string, init: RequestInit & { json?
   try {
     res = await fetch(BASE + path, { ...init, headers, body });
   } catch {
-    throw new ApiError("Can't reach the Plumb API. Check your connection or the API URL.", 0);
+    throw new ApiError("Can't reach the Trust AI API. Check your connection or the API URL.", 0);
   }
   if (res.status === 204) return undefined as T;
   const payload = await res.json().catch(() => null);

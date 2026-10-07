@@ -36,7 +36,7 @@ export default function OverviewPage() {
               <div className="first-copy">
                 <span className="eyebrow"><Icon name="rocket" />Getting started</span>
                 <h1>Welcome, {me.user.name.split(" ")[0]}. Let’s get your first agent live.</h1>
-                <p>Point Plumb at an agent you already run. It tests the connection, rates the risk, runs evaluation suites against the real endpoint, collects sign-off, and monitors every request once it’s in production.</p>
+                <p>Point Trust AI at an agent you already run. It tests the connection, rates the risk, runs evaluation suites against the real endpoint, collects sign-off, and monitors every request once it’s in production.</p>
                 <div className="row">
                   <Link className="btn pri lg" href="/onboard"><Icon name="plus" />Onboard your first agent</Link>
                   {me.role === "admin" && <Link className="btn lg" href="/settings">Invite your team</Link>}
@@ -49,7 +49,7 @@ export default function OverviewPage() {
               </div>
               <div className="first-flow" aria-label="How onboarding works">
                 <ol>
-                  {[["plug", "Connect", "One test request confirms Plumb can reach it"], ["edit", "Describe", "Owner, audience, data, and tools set the risk"],
+                  {[["plug", "Connect", "One test request confirms Trust AI can reach it"], ["edit", "Describe", "Owner, audience, data, and tools set the risk"],
                     ["flask", "Evaluate", "Accuracy, injection, PII, scope, and latency"], ["rocket", "Deploy", "Approval by tier, then a gradual rollout"]].map(([ic, t, d], i) => (
                     <li key={t}><span className="fi"><Icon name={ic} /></span><div><b>{t}</b><small>{d}</small></div><em>0{i + 1}</em></li>
                   ))}

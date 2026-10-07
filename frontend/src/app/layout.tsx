@@ -6,7 +6,7 @@ import "./globals.css";
 
 
 export const metadata: Metadata = {
-  title: "Plumb",
+  title: "Trust AI",
   description: "Onboard, evaluate, release, and monitor AI agents.",
 };
 

@@ -12,9 +12,9 @@ import type { Agent, Approval, AuthType, ConnectionTest, EvalRun, Member, Protoc
 
 const STEPS = ["Connect", "Describe", "Evaluate", "Deploy"];
 const NOTES = [
-  ["Connect your agent", "Plumb sends one test request to confirm it can reach the agent and read its answer."],
+  ["Connect your agent", "Trust AI sends one test request to confirm it can reach the agent and read its answer."],
   ["Describe it", "Ownership, audience and data access decide the risk tier and who has to approve."],
-  ["Evaluate it", "Plumb classifies risk and runs every suite against the real agent. Nothing reaches users yet."],
+  ["Evaluate it", "Trust AI classifies risk and runs every suite against the real agent. Nothing reaches users yet."],
   ["Deploy it", "Collect the approvals the tier needs, then choose how traffic moves to the agent."],
 ];
 const DATA_PRESETS: [string, boolean][] = [
@@ -211,7 +211,7 @@ function ConnectStep({ agent, onSaved, onNext, toast }: { agent: Agent | null; o
 
   return (
     <>
-      <div className="wiz-h"><small>Step 1 of 4</small><h2>Connect your agent</h2><p>Tell Plumb where the agent runs and how to talk to it. Secrets are encrypted at rest and never shown again.</p></div>
+      <div className="wiz-h"><small>Step 1 of 4</small><h2>Connect your agent</h2><p>Tell Trust AI where the agent runs and how to talk to it. Secrets are encrypted at rest and never shown again.</p></div>
       {locked && <div className="banner warn"><Icon name="lock" /><span>This agent is in release, so its connection is locked. Pause it to make changes.</span></div>}
       <section className="card">
         <div className="fs">
@@ -282,7 +282,7 @@ function ConnectStep({ agent, onSaved, onNext, toast }: { agent: Agent | null; o
           <div className={`test ${ok ? "ok" : ""}`} style={test && !test.ok && !dirty ? { borderStyle: "solid", borderColor: "color-mix(in srgb,var(--crit) 35%,var(--line))", background: "var(--crit-soft)" } : undefined}>
             <div className="test-h">
               <div><b>{ok ? "Connection works" : test && !test.ok && !dirty ? "The test request failed" : "Test the connection"}</b>
-                <small>{ok ? `Answered in ${secs(test!.latency_ms)} with a readable reply` : test && !test.ok && !dirty ? test.error : needsSecret ? "Add the credentials first." : "Plumb sends one sample request to the agent."}</small></div>
+                <small>{ok ? `Answered in ${secs(test!.latency_ms)} with a readable reply` : test && !test.ok && !dirty ? test.error : needsSecret ? "Add the credentials first." : "Trust AI sends one sample request to the agent."}</small></div>
               <button type="button" className={`btn ${ok ? "" : "dark"}`} disabled={!canTest || busy} onClick={runTest}>
                 {busy ? <Spinner size={14} /> : <Icon name={ok ? "refresh" : "play"} />}{busy ? "Testing" : ok ? "Test again" : "Send test request"}
               </button>
@@ -446,7 +446,7 @@ function EvaluateStep({ agent, onSaved, onBack, onNext, llm }: { agent: Agent; o
   return (
     <>
       <div className="wiz-h"><small>Step 3 of 4</small><h2>Evaluate before anyone uses it</h2>
-        <p>Plumb classifies risk, then sends real test prompts to the agent: task accuracy, prompt injection, PII leakage, scope, and latency. {llm ? "Answers are graded by your configured model." : "No LLM key is configured, so answers are graded with built-in rules."}</p></div>
+        <p>Trust AI classifies risk, then sends real test prompts to the agent: task accuracy, prompt injection, PII leakage, scope, and latency. {llm ? "Answers are graded by your configured model." : "No LLM key is configured, so answers are graded with built-in rules."}</p></div>
       <section className="card">
         <div className="fs">
           <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -549,7 +549,7 @@ function DeployStep({ agent, onSaved, onBack, onDone, role }: { agent: Agent; on
             </div>
           ))}
           {agent.status === "rejected" && current.length > 0 && <button className="btn" type="button" style={{ marginTop: 12 }} disabled={busy === "req"} onClick={request}><Icon name="refresh" />Request approval again</button>}
-          {pending.length > 0 && !pending.some(canDecide) && <p className="help" style={{ marginTop: 12 }}>Approvers see this in their workspace. You can leave and come back; Plumb keeps your place.</p>}
+          {pending.length > 0 && !pending.some(canDecide) && <p className="help" style={{ marginTop: 12 }}>Approvers see this in their workspace. You can leave and come back; Trust AI keeps your place.</p>}
         </div>
         <div className="fs"><h3>Rollout</h3><p>How traffic moves to {agent.name}.</p>
           <div className="opts" role="radiogroup" aria-label="Rollout">
@@ -579,7 +579,7 @@ function Done({ agent, gateway }: { agent: Agent; gateway: string }) {
     <div className="done-wrap">
       <div className="done-ic"><Icon name="check" /></div>
       <h2>{agent.name} is live</h2>
-      <p>{agent.rollout?.mode === "gradual" ? "Traffic moves over gradually." : "It takes every request now."} Send requests through the Plumb gateway so guardrails apply and every call is traced.</p>
+      <p>{agent.rollout?.mode === "gradual" ? "Traffic moves over gradually." : "It takes every request now."} Send requests through the Trust AI gateway so guardrails apply and every call is traced.</p>
       <div className="done-grid">
         <div><small>Risk tier</small><b>Tier {agent.risk_tier}</b></div>
         <div><small>Rollout</small><b>{agent.rollout?.mode === "gradual" ? "Gradual" : "All at once"}</b></div>
