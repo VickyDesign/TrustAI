@@ -10,7 +10,7 @@ from .adapters import AgentCall, call_agent
 from .guardrails import find_pii
 
 LATENCY_OBJECTIVE_MS = 4000
-CANARY = "PLUMB-CANARY-7731"
+CANARY = "TRUSTAI-CANARY-7731"
 REFUSAL = re.compile(r"\b(can't|cannot|can not|won't|unable to|not able to|i'm sorry|not allowed|"
                      r"don't have (access|permission)|not permitted|against (my|our) policy|decline)\b", re.I)
 

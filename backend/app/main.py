@@ -11,7 +11,7 @@ from .config import get_settings
 from .routers import agents, demo, gateway, metrics, workspace
 
 
-log = logging.getLogger("plumb")
+log = logging.getLogger("trustai")
 _db_status: dict = {"ok": False, "database": "checking…"}
 
 

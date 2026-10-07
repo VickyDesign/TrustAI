@@ -1,7 +1,7 @@
 # Render Blueprint: New > Blueprint, then pick this repository.
 services:
   - type: web
-    name: plumb-api
+    name: trustai-api
     runtime: python
     rootDir: backend
     plan: free
@@ -18,7 +18,7 @@ services:
       - key: ENCRYPTION_KEY
         generateValue: true
       - key: CORS_ORIGIN_REGEX
-        value: https://plumb.*\.vercel\.app
+        value: https://trustai.*\.vercel\.app
       - key: LLM_BASE_URL
         value: https://api.openai.com/v1
       - key: LLM_API_KEY

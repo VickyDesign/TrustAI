@@ -1,4 +1,4 @@
-/* Plumb design system. Inset app shell: sidebar on a tinted canvas, each screen on a white sheet.
+/* Trust AI design system. Inset app shell: sidebar on a tinted canvas, each screen on a white sheet.
    Onboarding is a focused full-screen wizard per agent: Connect, Details, Evaluate, Deploy. */
 :root{
   --canvas:#F1F2F6; --sheet:#FFFFFF; --sub:#F7F8FA; --hover:#F1F2F6; --line:#E8E9EF; --line2:#D9DCE4;

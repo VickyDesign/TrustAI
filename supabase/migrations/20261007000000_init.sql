@@ -1,4 +1,4 @@
--- Plumb: AI fleet console
+-- Trust AI: AI fleet console
 -- Initial schema. The FastAPI backend connects with the database's service role
 -- (it bypasses RLS). Row level security is enabled on every table with no
 -- policies, so the browser's anon key can read nothing directly: the frontend

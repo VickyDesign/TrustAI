@@ -48,7 +48,7 @@ class Settings(BaseSettings):
 
     # Comma-separated list of frontend origins allowed by CORS.
     cors_origins: str = "http://localhost:3000"
-    # Optional regex for extra origins, e.g. Vercel preview deployments: https://plumb-.*\.vercel\.app
+    # Optional regex for extra origins, e.g. Vercel preview deployments: https://trustai-.*\.vercel\.app
     cors_origin_regex: str = ""
 
     # OpenAI-compatible chat completions endpoint used for risk classification and judging.

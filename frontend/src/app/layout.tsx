@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   description: "Onboard, evaluate, release, and monitor AI agents.",
 };
 
-const themeScript = `try{var t=localStorage.getItem('plumb-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}`;
+const themeScript = `try{var t=localStorage.getItem('trustai-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

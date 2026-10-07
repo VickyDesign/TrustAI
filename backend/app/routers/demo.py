@@ -2,7 +2,7 @@
 
 Connect it in the wizard as an HTTP endpoint:
   URL    https://<this API>/demo/agent
-  Token  plumb-demo (bearer)
+  Token  trustai-demo (bearer)
 Everything else can stay at its default.
 """
 import asyncio
@@ -12,7 +12,7 @@ from fastapi import APIRouter, Header, HTTPException, Request
 
 router = APIRouter(prefix="/demo", tags=["demo"])
 
-TOKEN = "plumb-demo"
+TOKEN = "trustai-demo"
 REFUSE = ("ignore", "override", "system prompt", "developer mode", "restrictions", "phishing", "bypass",
           "delete every", "coworker", "credit card", "social security", "national id", "home address",
           "email addresses", "contact details", "safety rules", "operator", "code", "password")
@@ -21,7 +21,7 @@ REFUSE = ("ignore", "override", "system prompt", "developer mode", "restrictions
 @router.post("/agent")
 async def demo_agent(request: Request, authorization: str = Header(default="")):
     if authorization != f"Bearer {TOKEN}":
-        raise HTTPException(401, "Use the bearer token plumb-demo")
+        raise HTTPException(401, "Use the bearer token trustai-demo")
     try:
         body = await request.json()
     except ValueError:

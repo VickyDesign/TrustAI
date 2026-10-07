@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Topbar } from "@/components/Shell";
 import { Icon } from "@/components/Icon";
@@ -26,6 +26,8 @@ export default function AgentPage() {
   const { data: agent, error, reload } = useApi<Agent>(`/agents/${id}`, { pollMs: 15000 });
   const [tab, setTab] = useState<Tab | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     if (!agent || tab) return;
@@ -47,6 +49,13 @@ export default function AgentPage() {
     finally { setBusy(false); }
   }
 
+  async function remove() {
+    setBusy(true);
+    try { await api(`/agents/${id}`, { method: "DELETE" }); toast(`${agent!.name} deleted`); router.push("/agents"); }
+    catch (e) { toast((e as Error).message); setBusy(false); setConfirmDelete(false); }
+  }
+  const canDelete = !live || me.role === "admin";
+
   return (
     <>
       <Topbar crumbs={[{ label: "Agents", href: "/agents" }, { label: agent.name }]} />
@@ -63,6 +72,7 @@ export default function AgentPage() {
             {agent.status === "paused" && <button className="btn pri" disabled={busy} onClick={() => act(`/agents/${id}/resume`, "Traffic resumed")}><Icon name="play" />Resume traffic</button>}
             {["draft", "evaluated", "blocked", "rejected"].includes(agent.status) && <Link className="btn pri" href={`/onboard?agent=${id}`}>Continue setup</Link>}
             {agent.status === "approved" && <Link className="btn pri" href={`/onboard?agent=${id}`}><Icon name="rocket" />Deploy</Link>}
+            {canDelete && <button className="icon-btn" type="button" aria-label="Delete agent" title="Delete agent" onClick={() => setConfirmDelete(true)}><Icon name="trash" /></button>}
           </div>
         </div>
         <Journey agent={agent} />
@@ -77,6 +87,16 @@ export default function AgentPage() {
         {tab === "configuration" && <ConfigTab agent={agent} gateway={me.gateway_url} />}
         {tab === "activity" && <ActivityTab id={id} />}
       </div>
+      {confirmDelete && (
+        <div className="dlg-back" role="dialog" aria-modal="true" aria-labelledby="del-h" onClick={() => !busy && setConfirmDelete(false)}>
+          <div className="dlg" onClick={(e) => e.stopPropagation()}>
+            <h3 id="del-h">Delete {agent.name}?</h3>
+            <p>{live ? "It’s live, so the gateway stops accepting requests for it right away. " : ""}Its evaluations, approvals, and request history are deleted too. This can’t be undone.</p>
+            <div className="row"><button className="btn" type="button" disabled={busy} onClick={() => setConfirmDelete(false)}>Cancel</button>
+              <button className="btn pri" type="button" disabled={busy} style={{ background: "var(--crit)", borderColor: "var(--crit)" }} onClick={remove}>{busy && <Spinner size={13} />}Delete agent</button></div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

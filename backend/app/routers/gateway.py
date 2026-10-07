@@ -33,7 +33,7 @@ async def _record(agent: dict, session_id: str | None, status: str, latency: int
 @router.post("/{slug}/invoke")
 async def invoke(slug: str, body: InvokeIn, authorization: str = Header(default="")):
     if not authorization.lower().startswith("bearer "):
-        raise HTTPException(401, "Send a gateway key as: Authorization: Bearer plumb_...")
+        raise HTTPException(401, "Send a gateway key as: Authorization: Bearer trustai_...")
     key = await db.fetchrow(
         "select id, org_id from gateway_keys where key_hash=%s and revoked_at is null",
         hash_key(authorization.split(" ", 1)[1].strip()))

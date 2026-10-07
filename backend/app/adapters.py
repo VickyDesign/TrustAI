@@ -178,7 +178,7 @@ async def _adk(agent, prompt, session_id, client, headers):
     if not app:
         raise AdapterError("Set the ADK app name for this agent")
     base = agent["endpoint_url"].rstrip("/")
-    user = cfg.get("user_id", "plumb")
+    user = cfg.get("user_id", "trustai")
     check_outbound_url(base)
     await client.post(f"{base}/apps/{app}/users/{user}/sessions/{session_id}", json={}, headers=headers)
     body = {"app_name": app, "user_id": user, "session_id": session_id,
@@ -227,13 +227,13 @@ async def _directline(agent, prompt, session_id, client, headers):
         raise AdapterError(f"Direct Line returned HTTP {conv.status_code}", conv.status_code)
     cid = conv.json()["conversationId"]
     await client.post(f"{base}/conversations/{cid}/activities", headers=headers,
-                      json={"type": "message", "from": {"id": f"plumb-{session_id}"}, "text": prompt})
+                      json={"type": "message", "from": {"id": f"trustai-{session_id}"}, "text": prompt})
     deadline = time.monotonic() + float(agent.get("timeout_s") or 30)
     while time.monotonic() < deadline:
         await asyncio.sleep(0.8)
         acts = (await client.get(f"{base}/conversations/{cid}/activities", headers=headers)).json()
         replies = [a for a in acts.get("activities", [])
-                   if a.get("type") == "message" and not str(dig(a, "from.id")).startswith("plumb-")]
+                   if a.get("type") == "message" and not str(dig(a, "from.id")).startswith("trustai-")]
         if replies:
             return replies[-1].get("text") or "", 200, acts
     raise AdapterError("The bot didn't reply before the timeout")
@@ -249,7 +249,7 @@ PROTOCOLS = {"http": _http, "a2a": _a2a, "adk": _adk, "openai": _openai,
 
 
 async def call_agent(agent: dict, prompt: str, session_id: str | None = None) -> AgentCall:
-    session_id = session_id or f"plumb-{uuid.uuid4().hex[:12]}"
+    session_id = session_id or f"trustai-{uuid.uuid4().hex[:12]}"
     if not agent.get("endpoint_url") and agent.get("protocol") != "directline":
         return AgentCall(ok=False, error="Add the agent's URL first")
     handler = PROTOCOLS.get(agent.get("protocol") or "http", _http)

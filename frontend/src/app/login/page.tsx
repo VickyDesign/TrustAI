@@ -18,13 +18,13 @@ export default function LoginPage() {
   const [info, setInfo] = useState<string | null>(null);
 
   useEffect(() => {
-    try { const saved = localStorage.getItem("plumb-invite"); if (saved) setCode(saved); } catch {}
+    try { const saved = localStorage.getItem("trustai-invite"); if (saved) setCode(saved); } catch {}
     supabase().auth.getSession().then(({ data }) => { if (data.session) router.replace("/"); });
   }, [router]);
 
   async function finish() {
     if (code.trim()) {
-      try { await api("/join", { method: "POST", json: { code: code.trim() } }); try { localStorage.removeItem("plumb-invite"); } catch {} }
+      try { await api("/join", { method: "POST", json: { code: code.trim() } }); try { localStorage.removeItem("trustai-invite"); } catch {} }
       catch (e) { setError((e as Error).message); setBusy(false); return; }
     }
     router.replace("/");
@@ -44,7 +44,7 @@ export default function LoginPage() {
     });
     if (error) { setError(error.message); setBusy(false); return; }
     if (!data.session) {
-      try { if (code.trim()) localStorage.setItem("plumb-invite", code.trim()); } catch {}
+      try { if (code.trim()) localStorage.setItem("trustai-invite", code.trim()); } catch {}
       setInfo("Check your inbox to confirm your email, then sign in.");
       setMode("signin"); setBusy(false); return;
     }

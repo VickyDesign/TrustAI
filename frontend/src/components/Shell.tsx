@@ -65,7 +65,7 @@ export function Topbar({ crumbs }: { crumbs: { label: string; href?: string }[] 
   const flip = () => {
     const next = dark ? "light" : "dark";
     document.documentElement.dataset.theme = next;
-    try { localStorage.setItem("plumb-theme", next); } catch {}
+    try { localStorage.setItem("trustai-theme", next); } catch {}
     setDark(!dark);
   };
   return (

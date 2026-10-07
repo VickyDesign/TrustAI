@@ -263,7 +263,7 @@ function ConnectStep({ agent, onSaved, onNext, toast }: { agent: Agent | null; o
               {c.protocol === "adk" && (
                 <div className="field f2" style={{ marginTop: 0 }}>
                   <div><label className="lab" htmlFor="w-app">App name<small>Required</small></label><div className="inp"><input id="w-app" className="mono" value={c.app_name} disabled={locked} onChange={(e) => set("app_name", e.target.value)} /></div></div>
-                  <div><label className="lab" htmlFor="w-uid">User ID<small>Optional</small></label><div className="inp"><input id="w-uid" className="mono" value={c.user_id} placeholder="plumb" disabled={locked} onChange={(e) => set("user_id", e.target.value)} /></div></div>
+                  <div><label className="lab" htmlFor="w-uid">User ID<small>Optional</small></label><div className="inp"><input id="w-uid" className="mono" value={c.user_id} placeholder="trustai" disabled={locked} onChange={(e) => set("user_id", e.target.value)} /></div></div>
                 </div>
               )}
               {c.protocol === "openai" && (

@@ -41,7 +41,7 @@ def mask(value: str | None) -> str | None:
 
 def new_gateway_key() -> tuple[str, str, str]:
     """Return (full key shown once, display prefix, sha256 hash stored)."""
-    raw = "plumb_" + secrets.token_urlsafe(32)
+    raw = "trustai_" + secrets.token_urlsafe(32)
     return raw, raw[:12], hash_key(raw)
 
 
