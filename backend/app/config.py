@@ -1,0 +1,58 @@
+from functools import lru_cache
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    """Environment configuration. See backend/.env.example for every value."""
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    # Supabase Postgres connection string (Project settings > Database > Connection string).
+    database_url: str
+
+    # Supabase project URL, used to fetch the JWT signing keys (JWKS).
+    supabase_url: str = ""
+    # Legacy HS256 JWT secret. Leave empty for projects that use asymmetric signing keys.
+    supabase_jwt_secret: str = ""
+
+    # Fernet key that encrypts agent credentials at rest.
+    # Generate one with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    encryption_key: str
+
+    # Comma-separated list of frontend origins allowed by CORS.
+    cors_origins: str = "http://localhost:3000"
+    # Optional regex for extra origins, e.g. Vercel preview deployments: https://plumb-.*\.vercel\.app
+    cors_origin_regex: str = ""
+
+    # OpenAI-compatible chat completions endpoint used for risk classification and judging.
+    # Works with OpenAI, Azure OpenAI (v1 endpoint), Anthropic's OpenAI-compatible API, OpenRouter, etc.
+    llm_base_url: str = "https://api.openai.com/v1"
+    llm_api_key: str = ""
+    llm_model: str = "gpt-4.1-mini"
+
+    # The backend calls user-supplied agent URLs. Private and loopback addresses are blocked
+    # unless this is true (set it only for local development).
+    allow_private_endpoints: bool = False
+
+    # Public base URL of this backend, shown to users as the gateway address.
+    # On Render this falls back to RENDER_EXTERNAL_URL, which Render sets automatically.
+    public_api_url: str = ""
+    render_external_url: str = ""
+
+    @property
+    def api_base_url(self) -> str:
+        return (self.public_api_url or self.render_external_url or "http://localhost:8000").rstrip("/")
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def llm_enabled(self) -> bool:
+        return bool(self.llm_api_key)
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()  # type: ignore[call-arg]
