@@ -1,5 +1,5 @@
 """Risk classification across 12 dimensions in four groups, and the approval policy per tier."""
-from . import llm
+from . import llm, questionnaire
 
 GROUPS = [
     ("Autonomy and decisions", [
@@ -86,6 +86,12 @@ async def classify(agent: dict) -> dict:
                 levels[key] = (v["level"], str(v.get("reason") or levels[key][1])[:80])
         method = "llm"
 
+    # The owner's questionnaire answers can raise a dimension, never lower it.
+    answered = questionnaire.levels_from_answers(agent.get("questionnaire"))
+    for key, (lvl, reason) in answered.items():
+        if key in levels and LEVELS[lvl] >= LEVELS[levels[key][0]]:
+            levels[key] = (lvl, reason)
+
     groups = []
     for title, ds in GROUPS:
         items = [{"key": k, "label": label, "level": levels[k][0], "reason": levels[k][1]} for k, label, _ in ds]
@@ -102,5 +108,6 @@ async def classify(agent: dict) -> dict:
         "driver": driver_label,
         "groups": groups,
         "method": method,
+        "questionnaire": bool(answered),
         "approvals_required": APPROVALS_BY_TIER[tier],
     }

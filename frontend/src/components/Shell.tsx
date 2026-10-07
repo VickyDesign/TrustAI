@@ -11,6 +11,7 @@ const MenuContext = createContext<() => void>(() => {});
 const NAV = [
   { href: "/", label: "Overview", icon: "grid" },
   { href: "/agents", label: "Agents", icon: "bot" },
+  { href: "/policies", label: "Policies", icon: "shield" },
   { href: "/settings", label: "Settings", icon: "gear" },
 ];
 

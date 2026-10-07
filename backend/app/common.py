@@ -16,6 +16,7 @@ PUBLIC_AGENT_FIELDS = [
     "protocol", "endpoint_url", "auth_type", "auth_header", "request_template", "response_key",
     "timeout_s", "max_retries", "data_sources", "tools", "status", "onboarding_step", "risk_tier",
     "risk_assessment", "last_test", "version", "rollout", "deployed_at", "created_at", "updated_at",
+    "policy_id", "questionnaire", "test_questions",
 ]
 
 

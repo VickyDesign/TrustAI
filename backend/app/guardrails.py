@@ -58,22 +58,46 @@ class GuardResult:
     actions: list[dict] = field(default_factory=list)
 
 
-def redact(text: str, stage: str) -> GuardResult:
+def redact(text: str, stage: str, kinds: list[str] | None = None) -> GuardResult:
     out = text or ""
     actions = []
     for kind, value in find_pii(out):
+        if kinds is not None and kind not in kinds:
+            continue
         if value in out:
             out = out.replace(value, f"[{kind.upper()} REDACTED]")
             actions.append({"stage": stage, "type": "pii_redaction", "kind": kind})
     return GuardResult(text=out, actions=actions)
 
 
-def check_input(text: str) -> GuardResult:
-    if _JAILBREAK.search(text or ""):
+def _topic_hit(text: str, topics: list[str]) -> str | None:
+    low = (text or "").lower()
+    for t in topics:
+        if re.search(r"(?<!\w)" + re.escape(t.lower()) + r"(?!\w)", low):
+            return t
+    return None
+
+
+def check_input(text: str, rules: dict | None = None) -> GuardResult:
+    """Apply a policy's input guardrails. Without rules, everything is on (the default policy)."""
+    g = (rules or {}).get("guardrails") or {"block_jailbreak": True, "redact_pii": True, "blocked_topics": []}
+    if g.get("block_jailbreak", True) and _JAILBREAK.search(text or ""):
+        return GuardResult(text=text, blocked=True, actions=[{"stage": "input", "type": "jailbreak_blocked"}])
+    topic = _topic_hit(text, g.get("blocked_topics") or [])
+    if topic:
         return GuardResult(text=text, blocked=True,
-                           actions=[{"stage": "input", "type": "jailbreak_blocked"}])
-    return redact(text, "input")
+                           actions=[{"stage": "input", "type": "topic_blocked", "kind": topic}])
+    if not g.get("redact_pii", True):
+        return GuardResult(text=text)
+    return redact(text, "input", g.get("pii_kinds"))
 
 
-def check_output(text: str) -> GuardResult:
-    return redact(text, "output")
+def check_output(text: str, rules: dict | None = None) -> GuardResult:
+    g = (rules or {}).get("guardrails") or {"redact_pii": True}
+    topic = _topic_hit(text, g.get("blocked_topics") or [])
+    if topic:
+        return GuardResult(text="This answer was withheld because it touches a topic the policy blocks.",
+                           blocked=True, actions=[{"stage": "output", "type": "topic_blocked", "kind": topic}])
+    if not g.get("redact_pii", True):
+        return GuardResult(text=text)
+    return redact(text, "output", g.get("pii_kinds"))

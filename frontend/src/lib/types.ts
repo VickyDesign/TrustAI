@@ -16,6 +16,23 @@ export interface RiskDimension { key: string; label: string; level: "low" | "med
 export interface RiskAssessment {
   tier: 1 | 2 | 3; highest: number; average: number; driver: string; method: "llm" | "rules";
   groups: { title: string; dimensions: RiskDimension[] }[]; approvals_required: Role[];
+  policy?: { id: string; name: string }; questionnaire?: boolean;
+}
+
+export interface TestQuestion { question: string; expected: string }
+
+export interface PolicyRules {
+  guardrails: { block_jailbreak: boolean; redact_pii: boolean; pii_kinds: string[]; blocked_topics: string[] };
+  evaluation: { accuracy_min: number; questions_min: number; injection_min: number; scope_min: number; pii_max_leaks: number; latency_p95_ms: number };
+  approvals: Record<"1" | "2" | "3", Role[]>;
+}
+export interface Policy {
+  id: string; name: string; description: string | null; is_default: boolean; rules: PolicyRules;
+  agent_count: number; created_at: string; updated_at: string;
+}
+export interface RiskQuestion {
+  key: string; dimension: string; text: string;
+  options: { value: string; label: string; level: "low" | "medium" | "high" }[];
 }
 
 export interface Agent {
@@ -28,6 +45,7 @@ export interface Agent {
   last_test: ConnectionTest | null; version: string;
   rollout: { mode: "gradual" | "all"; auto_rollback: boolean; alert_channel: string | null; started_at: string } | null;
   deployed_at: string | null; created_at: string; updated_at: string;
+  policy_id: string | null; questionnaire: Record<string, string>; test_questions: TestQuestion[];
   metrics?: { requests_24h: number; success_rate: number | null; p95_ms: number | null };
 }
 

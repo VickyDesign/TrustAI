@@ -10,8 +10,9 @@ import { Kpi, LineChart, bucketLabels } from "@/components/charts";
 import { useAuth } from "@/components/auth";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
+import { approvalText } from "@/lib/policy";
 import { ROLE_LABEL, ago, clock, compact, isLive, n, protocolOf, secs, when } from "@/lib/format";
-import type { Activity, Agent, Approval, EvalCase, EvalRun, Kpis, RequestRow, SeriesPoint, Span } from "@/lib/types";
+import type { Activity, Agent, Policy, RiskQuestion, Approval, EvalCase, EvalRun, Kpis, RequestRow, SeriesPoint, Span } from "@/lib/types";
 
 const AUTH_LABEL = { none: "None", bearer: "Bearer token", api_key: "API key", oauth2: "OAuth 2.0" } as const;
 const AUDIENCE_LABEL = { internal: "Internal staff only", partners: "Partners", customers: "Customers", public: "The public" } as const;
@@ -122,7 +123,7 @@ function TryCard({ agent, onSent }: { agent: Agent; onSent: (requestId: string |
       setRes(r); onSent(r.request_id);
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   }
-  const label = (g: TryResult["guardrails"][number]) => g.type === "jailbreak_blocked" ? "Jailbreak blocked" : `${g.kind ? g.kind.replace("_", " ").replace(/^./, (c) => c.toUpperCase()) : "Personal data"} hidden in ${g.stage === "input" ? "message" : "reply"}`;
+  const label = (g: TryResult["guardrails"][number]) => g.type === "jailbreak_blocked" ? "Jailbreak blocked" : g.type === "topic_blocked" ? `Blocked topic: ${g.kind}` : `${g.kind ? g.kind.replace("_", " ").replace(/^./, (c) => c.toUpperCase()) : "Personal data"} hidden in ${g.stage === "input" ? "message" : "reply"}`;
   return (
     <section className="card" style={{ marginBottom: 20 }}>
       <div className="card-h"><h2>Send a test message</h2><span className="sub">Goes through the gateway like real traffic, so guardrails apply and it shows up below</span></div>
@@ -141,7 +142,7 @@ function TryCard({ agent, onSent }: { agent: Agent; onSent: (requestId: string |
             <div className="row" style={{ justifyContent: "space-between", marginBottom: 6, gap: 8, flexWrap: "wrap" }}>
               <b style={{ color: "var(--fg)" }}>{res.blocked ? "Blocked before reaching the agent" : res.error ? "The agent returned an error" : "The agent replied"}</b>
               <span className="row" style={{ gap: 6, flexWrap: "wrap" }}>
-                {res.guardrails.map((g, i) => <Pill key={i} tone={g.type === "jailbreak_blocked" ? "warn" : "acc"} icon="shield">{label(g)}</Pill>)}
+                {res.guardrails.map((g, i) => <Pill key={i} tone={g.type === "pii_redaction" ? "acc" : "warn"} icon="shield">{label(g)}</Pill>)}
                 {res.latency_ms != null && <Pill tone="mute">{secs(res.latency_ms)}</Pill>}
               </span>
             </div>
@@ -197,7 +198,7 @@ function MonitorTab({ agent }: { agent: Agent }) {
         <section className="card"><div className="card-h" style={{ paddingBottom: 10 }}><h2>Guardrails</h2><span className="sub">In the last {range}</span></div>
           {data.guardrails.length === 0 ? <div className="empty" style={{ padding: "20px 22px 28px" }}>No guardrail actions yet.</div> :
             data.guardrails.map((g, i) => (
-              <div className="intent" key={i} style={{ gridTemplateColumns: "minmax(0,1fr) 56px" }}><div><b>{g.type === "jailbreak_blocked" ? "Jailbreak blocked" : `PII redacted${g.kind ? `, ${g.kind.replace("_", " ")}` : ""}`}</b>
+              <div className="intent" key={i} style={{ gridTemplateColumns: "minmax(0,1fr) 56px" }}><div><b>{g.type === "jailbreak_blocked" ? "Jailbreak blocked" : g.type === "topic_blocked" ? `Blocked topic: ${g.kind}` : `Personal data hidden${g.kind ? `, ${g.kind.replace("_", " ")}` : ""}`}</b>
                 <div className="ibar"><i style={{ width: `${(g.n / data.guardrails[0].n) * 100}%` }} /></div></div><span className="r tn" style={{ fontWeight: 600 }}>{n(g.n)}</span></div>
             ))}
         </section>
@@ -327,6 +328,9 @@ function ReleaseTab({ agent, onChange, role }: { agent: Agent; onChange: () => v
 
 function ConfigTab({ agent, gateway }: { agent: Agent; gateway: string }) {
   const locked = ["awaiting_approval", "approved", "live", "paused"].includes(agent.status);
+  const { data: policies } = useApi<Policy[]>("/policies");
+  const { data: questions } = useApi<RiskQuestion[]>("/questionnaire");
+  const pol = policies?.find((p) => p.id === agent.policy_id) ?? policies?.find((p) => p.is_default);
   const curl = `curl -X POST ${gateway}/${agent.slug}/invoke \\\n  -H "Authorization: Bearer YOUR_GATEWAY_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"input": "Hello", "session_id": "user-123"}'`;
   return (
     <>
@@ -352,6 +356,34 @@ function ConfigTab({ agent, gateway }: { agent: Agent; gateway: string }) {
           <div><dt>Data it can reach</dt><dd>{agent.data_sources.join(", ") || "None listed"}</dd></div>
           <div><dt>Tools</dt><dd>{agent.tools.filter((t) => t.enabled).map((t) => `${t.name} (${t.access})`).join(", ") || "None listed"}</dd></div>
         </dl></section>
+      <section className="card mt"><div className="card-h"><h2>Policy</h2>{pol && <span className="sub">{pol.is_default && !agent.policy_id ? "Workspace default" : "Chosen during onboarding"}</span>}
+        <div className="end">{pol && <Link className="btn sm" href={`/policies/${pol.id}`}>Open policy <Icon name="chev" /></Link>}</div></div>
+        {!pol ? <div style={{ padding: "0 22px 22px" }}><Skeleton h={60} /></div> : (
+          <dl className="cfg-dl">
+            <div><dt>Name</dt><dd>{pol.name}</dd></div>
+            <div><dt>Guardrails</dt><dd>{[pol.rules.guardrails.block_jailbreak && "Blocks jailbreaks", pol.rules.guardrails.redact_pii && "Hides personal data", pol.rules.guardrails.blocked_topics.length && `Blocks ${pol.rules.guardrails.blocked_topics.join(", ")}`].filter(Boolean).join(" · ") || "None"}</dd></div>
+            <div><dt>Approvals</dt><dd>Tier 1: {approvalText(pol.rules.approvals["1"])} · Tier 2: {approvalText(pol.rules.approvals["2"])} · Tier 3: {approvalText(pol.rules.approvals["3"])}</dd></div>
+          </dl>
+        )}
+      </section>
+      <section className="card mt"><div className="card-h"><h2>Risk questions</h2><span className="sub">Answered by the owner during onboarding</span></div>
+        {!questions ? <div style={{ padding: "0 22px 22px" }}><Skeleton h={60} /></div> : Object.keys(agent.questionnaire || {}).length === 0 ? <div className="empty" style={{ paddingTop: 4 }}>Not answered yet.</div> : (
+          <dl className="cfg-dl">
+            {questions.map((q) => (
+              <div key={q.key}><dt>{q.text}</dt><dd>{q.options.find((o) => o.value === agent.questionnaire[q.key])?.label ?? "Not answered"}</dd></div>
+            ))}
+          </dl>
+        )}
+      </section>
+      <section className="card mt"><div className="card-h"><h2>Test questions</h2><span className="sub">{agent.test_questions.length ? `${agent.test_questions.length} run in every evaluation` : "None added"}</span>
+        <div className="end">{!locked && <Link className="btn sm" href={`/onboard?agent=${agent.id}`}><Icon name="edit" />Edit</Link>}</div></div>
+        {agent.test_questions.length > 0 && (
+          <div className="tw"><table className="tbl">
+            <thead><tr><th style={{ width: 40 }}>#</th><th>Question</th><th>Expected answer</th></tr></thead>
+            <tbody>{agent.test_questions.map((q, i) => <tr key={i}><td className="muted tn">{i + 1}</td><td>{q.question}</td><td className="muted">{q.expected || "Any helpful answer"}</td></tr>)}</tbody>
+          </table></div>
+        )}
+      </section>
     </>
   );
 }

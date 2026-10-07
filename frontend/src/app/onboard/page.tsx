@@ -8,12 +8,14 @@ import { EvalList, RiskPanel } from "@/components/agent-parts";
 import { useAuth } from "@/components/auth";
 import { api } from "@/lib/api";
 import { PROTOCOLS, ROLE_LABEL, ago, protocolOf, secs } from "@/lib/format";
-import type { Agent, Approval, AuthType, ConnectionTest, EvalRun, Member, Protocol, Tool } from "@/lib/types";
+import type { Agent, Approval, AuthType, ConnectionTest, EvalRun, Member, Policy, Protocol, RiskQuestion, TestQuestion, Tool } from "@/lib/types";
+import { CSV_TEMPLATE, approvalText, parseQuestionsCsv, policyFacts } from "@/lib/policy";
 
-const STEPS = ["Connect", "Describe", "Evaluate", "Deploy"];
+const STEPS = ["Connect", "Describe", "Policy", "Evaluate", "Deploy"];
 const NOTES = [
   ["Connect your agent", "Trust AI sends one test request to confirm it can reach the agent and read its answer."],
-  ["Describe it", "Ownership, audience and data access decide the risk tier and who has to approve."],
+  ["Describe it", "Ownership, data access and your answers to the risk questions decide the risk tier."],
+  ["Choose a policy", "The policy sets guardrails, pass marks and approvals. Your test questions show whether it gives the answers you expect."],
   ["Evaluate it", "Trust AI classifies risk and runs every suite against the real agent. Nothing reaches users yet."],
   ["Deploy it", "Collect the approvals the tier needs, then choose how traffic moves to the agent."],
 ];
@@ -65,9 +67,9 @@ function connPayload(c: Conn) {
 }
 
 function stepFor(a: Agent): number {
-  if (a.status === "draft") return a.last_test?.ok ? (a.onboarding_step >= 3 ? 2 : 1) : 0;
-  if (["evaluating", "evaluated", "blocked"].includes(a.status)) return 2;
-  return 3;
+  if (a.status === "draft") return !a.last_test?.ok ? 0 : a.onboarding_step < 3 ? 1 : a.onboarding_step < 4 ? 2 : 3;
+  if (["evaluating", "evaluated", "blocked"].includes(a.status)) return 3;
+  return 4;
 }
 
 export default function OnboardPage() {
@@ -79,6 +81,8 @@ export default function OnboardPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [step, setStep] = useState(0);
   const [done, setDone] = useState(false);
+  const [policies, setPolicies] = useState<Policy[]>([]);
+  useEffect(() => { api<Policy[]>("/policies").then(setPolicies).catch(() => {}); }, []);
 
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("agent");
@@ -102,7 +106,7 @@ export default function OnboardPage() {
   return (
     <section className="wiz" aria-label="Onboard an agent">
       <header className="wiz-top">
-        <div className="wiz-title"><Logo /><div><b>Onboard an agent</b><small>One agent, four steps, live at the end</small></div></div>
+        <div className="wiz-title"><Logo /><div><b>Onboard an agent</b><small>One agent, five steps, live at the end</small></div></div>
         <nav className="wiz-steps" aria-label="Onboarding steps">
           {STEPS.map((s, i) => {
             const st = done || i < step ? "done" : i === step ? "on" : "";
@@ -127,10 +131,11 @@ export default function OnboardPage() {
               <div style={{ minWidth: 0 }}>
                 {step === 0 && <ConnectStep agent={agent} onSaved={update} onNext={() => setStep(1)} toast={toast} />}
                 {step === 1 && agent && <DescribeStep agent={agent} onSaved={update} onBack={() => setStep(0)} onNext={() => setStep(2)} />}
-                {step === 2 && agent && <EvaluateStep agent={agent} onSaved={update} onBack={() => setStep(1)} onNext={() => setStep(3)} llm={me.llm_enabled} />}
-                {step === 3 && agent && <DeployStep agent={agent} onSaved={update} onBack={() => setStep(2)} onDone={() => setDone(true)} role={me.role} />}
+                {step === 2 && agent && <PolicyStep agent={agent} policies={policies} onSaved={update} onBack={() => setStep(1)} onNext={() => setStep(3)} />}
+                {step === 3 && agent && <EvaluateStep agent={agent} onSaved={update} onBack={() => setStep(2)} onNext={() => setStep(4)} llm={me.llm_enabled} policyName={policyOf(agent, policies)?.name} />}
+                {step === 4 && agent && <DeployStep agent={agent} onSaved={update} onBack={() => setStep(3)} onDone={() => setDone(true)} role={me.role} />}
               </div>
-              <Summary agent={agent} step={step} />
+              <Summary agent={agent} step={step} policyName={agent && agent.onboarding_step >= 4 ? policyOf(agent, policies)?.name : null} />
             </div>
           )}
       </div>
@@ -150,7 +155,11 @@ function Foot({ onBack, hint, next, nextLabel, busy }: { onBack?: () => void; hi
 }
 
 /* Summary rail ----------------------------------------------------------------- */
-function Summary({ agent, step }: { agent: Agent | null; step: number }) {
+function policyOf(agent: Agent, policies: Policy[]): Policy | undefined {
+  return policies.find((p) => p.id === agent.policy_id) ?? policies.find((p) => p.is_default);
+}
+
+function Summary({ agent, step, policyName }: { agent: Agent | null; step: number; policyName?: string | null }) {
   const row = (k: string, v: string | null | undefined) => (
     <div><dt>{k}</dt><dd className={v ? "" : "pend"}>{v || "Not yet"}</dd></div>
   );
@@ -162,6 +171,8 @@ function Summary({ agent, step }: { agent: Agent | null; step: number }) {
         {row("Connection", agent?.last_test?.ok ? `Tested, ${secs(agent.last_test.latency_ms)}` : null)}
         {row("Owner", agent && agent.onboarding_step >= 3 ? agent.owner_name : null)}
         {row("Data access", agent && agent.onboarding_step >= 3 ? `${agent.data_sources.length} source${agent.data_sources.length === 1 ? "" : "s"}` : null)}
+        {row("Policy", policyName)}
+        {row("Test questions", agent && agent.onboarding_step >= 4 ? (agent.test_questions.length ? String(agent.test_questions.length) : "None") : null)}
         {row("Risk tier", ev ? `Tier ${ev.tier}` : null)}
         {row("Evaluation", agent?.status === "blocked" ? "Failed" : ev && agent?.status !== "evaluating" ? "Passed" : agent?.status === "evaluating" ? "Running" : null)}
         {row("Approval", agent?.status === "approved" ? "Complete" : agent?.status === "awaiting_approval" ? "Waiting" : agent?.status === "rejected" ? "Rejected" : null)}
@@ -211,7 +222,7 @@ function ConnectStep({ agent, onSaved, onNext, toast }: { agent: Agent | null; o
 
   return (
     <>
-      <div className="wiz-h"><small>Step 1 of 4</small><h2>Connect your agent</h2><p>Tell Trust AI where the agent runs and how to talk to it. Secrets are encrypted at rest and never shown again.</p></div>
+      <div className="wiz-h"><small>Step 1 of 5</small><h2>Connect your agent</h2><p>Tell Trust AI where the agent runs and how to talk to it. Secrets are encrypted at rest and never shown again.</p></div>
       {locked && <div className="banner warn"><Icon name="lock" /><span>This agent is in release, so its connection is locked. Pause it to make changes.</span></div>}
       <section className="card">
         <div className="fs">
@@ -315,14 +326,19 @@ function DescribeStep({ agent, onSaved, onBack, onNext }: { agent: Agent; onSave
   const [tool, setTool] = useState<{ name: string; access: "read" | "write" }>({ name: "", access: "read" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [questions, setQuestions] = useState<RiskQuestion[] | null>(null);
+  const [answers, setAnswers] = useState<Record<string, string>>(agent.questionnaire ?? {});
   useEffect(() => { api<Member[]>("/members").then(setMembers).catch(() => {}); }, []);
+  useEffect(() => { api<RiskQuestion[]>("/questionnaire").then(setQuestions).catch(() => setQuestions([])); }, []);
+  const unanswered = (questions ?? []).filter((q) => !answers[q.key]).length;
   const sources = useMemo(() => {
     const all = DATA_PRESETS.map(([d]) => d);
     return [...all, ...f.data_sources.filter((d) => !all.includes(d))];
   }, [f.data_sources]);
   const toggle = (d: string) => setF((p) => ({ ...p, data_sources: p.data_sources.includes(d) ? p.data_sources.filter((x) => x !== d) : [...p.data_sources, d] }));
   const setTools = (t: Tool[]) => setF((p) => ({ ...p, tools: t }));
-  const valid = f.name.trim().length > 0 && f.purpose.trim().length >= 10;
+  const basicsOk = f.name.trim().length > 0 && f.purpose.trim().length >= 10;
+  const valid = basicsOk && questions !== null && unanswered === 0;
 
   async function next() {
     setBusy(true); setErr(null);
@@ -332,7 +348,7 @@ function DescribeStep({ agent, onSaved, onBack, onNext }: { agent: Agent; onSave
         name: f.name.trim(), team: f.team.trim() || null, purpose: f.purpose.trim(), audience: f.audience,
         owner_user_id: f.owner_user_id || null, owner_name: owner ? owner.display_name || owner.email : agent.owner_name, onboarding_step: 3,
       };
-      if (!locked) { body.data_sources = f.data_sources; body.tools = f.tools; }
+      if (!locked) { body.data_sources = f.data_sources; body.tools = f.tools; body.questionnaire = answers; }
       onSaved(await api<Agent>(`/agents/${agent.id}`, { method: "PATCH", json: body }));
       onNext();
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
@@ -340,7 +356,7 @@ function DescribeStep({ agent, onSaved, onBack, onNext }: { agent: Agent; onSave
 
   return (
     <>
-      <div className="wiz-h"><small>Step 2 of 4</small><h2>Describe the agent</h2><p>This tells reviewers what the agent is for, who is accountable, and what it can touch. It also drives the risk tier.</p></div>
+      <div className="wiz-h"><small>Step 2 of 5</small><h2>Describe the agent</h2><p>This tells reviewers what the agent is for, who is accountable, and what it can touch. It also drives the risk tier.</p></div>
       <section className="card">
         <div className="fs"><h3>Basics</h3>
           <div className="field f2">
@@ -397,15 +413,129 @@ function DescribeStep({ agent, onSaved, onBack, onNext }: { agent: Agent; onSave
           )}
         </div>
       </section>
+      <section className="card mt">
+        <div className="card-h"><h2>Risk questions</h2><span className="sub">{questions === null ? "Loading" : unanswered === 0 ? "All answered" : `${unanswered} of ${questions.length} to answer`}</span></div>
+        <div className="card-b" style={{ paddingTop: 0 }}>
+          <p className="help" style={{ marginTop: 0, marginBottom: 6 }}>Answer as the accountable owner. Each answer feeds one of the 12 risk dimensions. An answer can raise the risk tier but never lowers what the agent’s tools and data already imply.</p>
+          {questions === null ? <Skeleton h={200} /> : questions.map((q, i) => (
+            <div key={q.key} className="toggle-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 10 }}>
+              <div style={{ minWidth: 0 }}><b><span className="muted tn" style={{ fontWeight: 500, marginRight: 8 }}>{i + 1}.</span>{q.text}</b></div>
+              <div className="chips" role="radiogroup" aria-label={q.text} style={{ paddingLeft: 22 }}>
+                {q.options.map((o) => (
+                  <button key={o.value} type="button" role="radio" className="chk" aria-checked={answers[q.key] === o.value} aria-pressed={answers[q.key] === o.value} disabled={locked}
+                    onClick={() => setAnswers({ ...answers, [q.key]: o.value })} style={{ height: 34 }}>
+                    <span className="box" style={{ borderRadius: "50%" }}><Icon name="check" /></span>{o.label}</button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
       {err && <div style={{ marginTop: 14 }}><ErrorBox>{err}</ErrorBox></div>}
       <div style={{ height: 90 }} />
-      <Foot onBack={onBack} hint={valid ? "Saved when you continue." : "Add a name and a sentence about what it does."} next={valid ? next : null} nextLabel="Continue" busy={busy} />
+      <Foot onBack={onBack} hint={!basicsOk ? "Add a name and a sentence about what it does." : unanswered ? `Answer the ${unanswered} remaining risk question${unanswered === 1 ? "" : "s"}.` : "Saved when you continue."} next={valid ? next : null} nextLabel="Continue" busy={busy} />
     </>
   );
 }
 
-/* Step 3: evaluate ------------------------------------------------------------- */
-function EvaluateStep({ agent, onSaved, onBack, onNext, llm }: { agent: Agent; onSaved: (a: Agent) => void; onBack: () => void; onNext: () => void; llm: boolean }) {
+/* Step 3: policy and test questions --------------------------------------------- */
+function PolicyStep({ agent, policies, onSaved, onBack, onNext }: { agent: Agent; policies: Policy[]; onSaved: (a: Agent) => void; onBack: () => void; onNext: () => void }) {
+  const locked = ["awaiting_approval", "approved", "live", "paused"].includes(agent.status);
+  const fallback = policies.find((p) => p.is_default)?.id ?? null;
+  const [policyId, setPolicyId] = useState<string | null>(agent.policy_id ?? fallback);
+  const [rows, setRows] = useState<TestQuestion[]>(agent.test_questions.length ? agent.test_questions : [{ question: "", expected: "" }]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  useEffect(() => { if (!policyId && fallback) setPolicyId(fallback); }, [fallback, policyId]);
+  const filled = rows.filter((r) => r.question.trim());
+  const setRow = (i: number, patch: Partial<TestQuestion>) => setRows(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+
+  async function upload(file: File) {
+    setNote(null); setErr(null);
+    try {
+      const parsed = parseQuestionsCsv(await file.text());
+      if (!parsed.length) { setErr("No questions found. Use two columns: question, expected answer."); return; }
+      const merged = [...filled, ...parsed].slice(0, 100);
+      setRows(merged);
+      setNote(`Added ${Math.min(parsed.length, 100 - filled.length)} question${parsed.length === 1 ? "" : "s"} from ${file.name}.`);
+    } catch { setErr("Couldn't read that file. Save it as CSV and try again."); }
+  }
+  function template() {
+    const url = URL.createObjectURL(new Blob([CSV_TEMPLATE], { type: "text/csv" }));
+    const a = document.createElement("a"); a.href = url; a.download = "test-questions-template.csv"; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  async function next() {
+    setBusy(true); setErr(null);
+    try {
+      const body: Record<string, unknown> = { onboarding_step: 4 };
+      if (!locked) { body.policy_id = policyId; body.test_questions = filled.map((r) => ({ question: r.question.trim(), expected: r.expected.trim() })); }
+      onSaved(await api<Agent>(`/agents/${agent.id}`, { method: "PATCH", json: body }));
+      onNext();
+    } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+  }
+
+  return (
+    <>
+      <div className="wiz-h"><small>Step 3 of 5</small><h2>Choose a policy and add test questions</h2>
+        <p>The policy decides the guardrails on live traffic, the pass marks for evaluation, and who approves each risk tier. Test questions check that the agent gives the answers you expect.</p></div>
+      <section className="card">
+        <div className="fs">
+          <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div><h3>Policy</h3><p>Pick the rule set this agent must follow.</p></div>
+            <Link className="btn sm" href="/policies" target="_blank"><Icon name="shield" />Manage policies</Link>
+          </div>
+          {!policies.length ? <div style={{ marginTop: 14 }}><Skeleton h={120} /></div> : (
+            <div className="opts" role="radiogroup" aria-label="Policy" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))" }}>
+              {policies.map((p) => (
+                <button key={p.id} type="button" className="opt" role="radio" aria-checked={policyId === p.id} disabled={locked} onClick={() => setPolicyId(p.id)}>
+                  <b>{p.name} {p.is_default && <Pill tone="acc">Default</Pill>}</b>
+                  <small>{p.description || "No description"}</small>
+                  <ul style={{ margin: "12px 0 0", padding: 0, listStyle: "none", display: "grid", gap: 4, fontSize: 12.5, color: "var(--fg2)" }}>
+                    {policyFacts(p).map((f) => <li key={f} style={{ display: "flex", gap: 6, alignItems: "center" }}><Icon name="check" className="ic" />{f}</li>)}
+                    <li style={{ display: "flex", gap: 6, alignItems: "center" }}><Icon name="sign" className="ic" />Tier 2: {approvalText(p.rules.approvals["2"])}</li>
+                  </ul>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="fs">
+          <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap" }}>
+            <div><h3>Test questions</h3><p>Optional, but the best way to know the agent is right. Add 5 to 20 questions real users ask, with the answer you expect.</p></div>
+            {!locked && <div className="row" style={{ gap: 8 }}>
+              <button className="btn sm" type="button" onClick={template}><Icon name="dl" />CSV template</button>
+              <label className="btn sm" style={{ cursor: "pointer" }}><Icon name="plus" />Upload CSV
+                <input type="file" accept=".csv,text/csv,.txt" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ""; }} /></label>
+            </div>}
+          </div>
+          {note && <div className="note-box" style={{ marginTop: 12 }}>{note}</div>}
+          <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
+            <div className="row" style={{ gap: 10, fontSize: 12.5, color: "var(--fg3)", fontWeight: 500 }}>
+              <span style={{ width: 22 }} /><span style={{ flex: 1 }}>Question</span><span style={{ flex: 1 }}>Expected answer</span><span style={{ width: 36 }} />
+            </div>
+            {rows.map((r, i) => (
+              <div className="row" key={i} style={{ gap: 10, alignItems: "flex-start" }}>
+                <span className="muted tn" style={{ width: 22, paddingTop: 12, fontSize: 13 }}>{i + 1}</span>
+                <div className="inp" style={{ flex: 1, minWidth: 0 }}><input value={r.question} disabled={locked} placeholder="Does Acme Corp have sanctions matches?" aria-label={`Question ${i + 1}`} onChange={(e) => setRow(i, { question: e.target.value })} /></div>
+                <div className="inp" style={{ flex: 1, minWidth: 0 }}><input value={r.expected} disabled={locked} placeholder="No sanctions matches were found" aria-label={`Expected answer ${i + 1}`} onChange={(e) => setRow(i, { expected: e.target.value })} /></div>
+                {!locked && <button type="button" className="icon-btn" style={{ marginTop: 4 }} aria-label={`Remove question ${i + 1}`} onClick={() => setRows(rows.length > 1 ? rows.filter((_, j) => j !== i) : [{ question: "", expected: "" }])}><Icon name="trash" /></button>}
+              </div>
+            ))}
+          </div>
+          {!locked && rows.length < 100 && <button type="button" className="btn" style={{ marginTop: 12 }} onClick={() => setRows([...rows, { question: "", expected: "" }])}><Icon name="plus" />Add question</button>}
+        </div>
+      </section>
+      {err && <div style={{ marginTop: 14 }}><ErrorBox>{err}</ErrorBox></div>}
+      <div style={{ height: 90 }} />
+      <Foot onBack={onBack} hint={filled.length ? `${filled.length} test question${filled.length === 1 ? "" : "s"} will run in the evaluation.` : "No test questions yet. You can continue without them."} next={policyId || locked ? next : null} nextLabel="Continue" busy={busy} />
+    </>
+  );
+}
+
+/* Step 4: evaluate ------------------------------------------------------------- */
+function EvaluateStep({ agent, onSaved, onBack, onNext, llm, policyName }: { agent: Agent; onSaved: (a: Agent) => void; onBack: () => void; onNext: () => void; llm: boolean; policyName?: string }) {
   const [run, setRun] = useState<EvalRun | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -445,15 +575,15 @@ function EvaluateStep({ agent, onSaved, onBack, onNext, llm }: { agent: Agent; o
 
   return (
     <>
-      <div className="wiz-h"><small>Step 3 of 4</small><h2>Evaluate before anyone uses it</h2>
-        <p>Trust AI classifies risk, then sends real test prompts to the agent: task accuracy, prompt injection, PII leakage, scope, and latency. {llm ? "Answers are graded by your configured model." : "No LLM key is configured, so answers are graded with built-in rules."}</p></div>
+      <div className="wiz-h"><small>Step 4 of 5</small><h2>Evaluate before anyone uses it</h2>
+        <p>Trust AI rates the risk, then sends real prompts to the agent: task accuracy, your test questions, prompt injection, personal data, scope and speed. Pass marks come from the {policyName ? <b>{policyName}</b> : "selected"} policy. {llm ? "Answers are graded by your configured model." : "No LLM key is configured, so answers are graded with built-in rules."}</p></div>
       <section className="card">
         <div className="fs">
           <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
             <div><h3>{finished ? (passed ? "Evaluation complete" : run.status === "error" ? "Evaluation couldn’t finish" : "Evaluation found problems") : active ? "Running suites" : "Evaluation suites"}</h3>
               <p style={{ marginTop: 3, fontSize: 13.5, color: "var(--fg3)" }}>
                 {finished ? (passed ? `${run.summary?.passed} of ${run.summary?.total} suites passed.` : run.error || `Failed: ${run.summary?.failed.join(", ")}. Fix the agent and run it again.`)
-                  : active ? "This usually takes under a minute." : "Six checks run against the live endpoint you connected."}</p></div>
+                  : active ? "This usually takes under a minute." : "Seven checks run against the live endpoint you connected."}</p></div>
             {finished && passed ? <Pill tone="good" icon="check">{`${run.summary?.passed} of ${run.summary?.total} passed`}</Pill>
               : !active && !locked && <button className="btn pri" type="button" disabled={starting || loading} onClick={start}>{starting ? <Spinner size={14} /> : <Icon name={finished ? "refresh" : "play"} />}{finished ? "Run again" : "Run evaluation"}</button>}
           </div>
@@ -462,7 +592,7 @@ function EvaluateStep({ agent, onSaved, onBack, onNext, llm }: { agent: Agent; o
         <div className="fs">
           {loading ? <Skeleton h={300} /> : run ? <EvalList results={run.results} /> : (
             <div className="run">
-              {[["Risk classification", "12 dimensions from purpose, audience, data and tools"], ["Task accuracy", "Cases generated from the agent’s purpose"], ["Prompt injection", "Red-team probes with a canary secret"], ["PII leakage", "Requests for personal data the agent must refuse"], ["Scope adherence", "Out-of-scope requests it should decline"], ["Latency", "p95 across every case, 4 s objective"]].map(([t, d]) => (
+              {[["Risk classification", "12 dimensions from your answers, data and tools"], ["Task accuracy", "Cases generated from the agent’s purpose"], ["Your test questions", agent.test_questions.length ? `${agent.test_questions.length} question${agent.test_questions.length === 1 ? "" : "s"} you added` : "None added, so this is skipped"], ["Prompt injection", "Red-team probes with a canary secret"], ["PII leakage", "Requests for personal data the agent must refuse"], ["Scope adherence", "Out-of-scope requests it should decline"], ["Latency", "p95 across every case"]].map(([t, d]) => (
                 <div className="run-i" key={t}><span className="ri"><Icon name="clock" /></span><div><b>{t}</b><small>{d}</small></div><span className="res"><small className="muted">Queued</small></span></div>
               ))}
             </div>
@@ -519,6 +649,9 @@ function DeployStep({ agent, onSaved, onBack, onDone, role }: { agent: Agent; on
   }
 
   const tier = agent.risk_tier ?? 3;
+  const required = agent.risk_assessment?.approvals_required ?? [];
+  const policyName = agent.risk_assessment?.policy?.name ?? "selected";
+  const needs = required.length === 0 ? null : approvalText(required).toLowerCase();
   const pending = (approvals ?? []).filter((a) => a.status === "pending");
   const current = (approvals ?? []).filter((a, i, arr) => arr.findIndex((b) => b.required_role === a.required_role) === i);
   const canDecide = (a: Approval) => role === "admin" || role === a.required_role;
@@ -526,15 +659,15 @@ function DeployStep({ agent, onSaved, onBack, onDone, role }: { agent: Agent; on
 
   return (
     <>
-      <div className="wiz-h"><small>Step 4 of 4</small><h2>Deploy to Production</h2>
-        <p>{tier === 1 ? "Tier 1 agents are approved by policy." : tier === 2 ? "Tier 2 agents need approval from a risk owner." : "Tier 3 agents need approval from a risk owner and security."} Then choose how traffic moves to the agent.</p></div>
+      <div className="wiz-h"><small>Step 5 of 5</small><h2>Deploy to Production</h2>
+        <p>{needs ? `Under the ${policyName} policy, Tier ${tier} agents need approval from the ${needs}.` : `Under the ${policyName} policy, Tier ${tier} agents need no approval.`} Then choose how traffic moves to the agent.</p></div>
       <section className="card">
-        <div className="fs"><h3>Approval</h3><p>Required by the Production policy for Tier {tier}.</p>
+        <div className="fs"><h3>Approval</h3><p>Required by the {policyName} policy for Tier {tier}.</p>
           {!approvals ? <div style={{ marginTop: 12 }}><Skeleton h={64} /></div> : current.length === 0 ? (
             <div className="appr first" style={{ marginTop: 6 }}>
               <span className="av do"><Icon name="sign" /></span>
-              <div><b>{agent.status === "approved" ? "Approved by policy" : "No approval requested yet"}</b><small>{tier === 1 ? "Tier 1 needs no sign-off" : `${tier === 2 ? "Risk owner" : "Risk owner and security"} will be asked`}</small></div>
-              <div className="end">{agent.status === "evaluated" || agent.status === "rejected" ? <button className="btn" type="button" disabled={busy === "req"} onClick={request}>{busy === "req" ? <Spinner size={13} /> : <Icon name="sign" />}{tier === 1 ? "Confirm" : "Request approval"}</button> : approved ? <Pill tone="good" icon="check">Approved</Pill> : null}</div>
+              <div><b>{agent.status === "approved" ? "Approved by policy" : "No approval requested yet"}</b><small>{needs ? `${approvalText(required)} will be asked` : `Tier ${tier} needs no sign-off`}</small></div>
+              <div className="end">{agent.status === "evaluated" || agent.status === "rejected" ? <button className="btn" type="button" disabled={busy === "req"} onClick={request}>{busy === "req" ? <Spinner size={13} /> : <Icon name="sign" />}{needs ? "Request approval" : "Confirm"}</button> : approved ? <Pill tone="good" icon="check">Approved</Pill> : null}</div>
             </div>
           ) : current.map((a, i) => (
             <div key={a.id} className={`appr ${i === 0 ? "first" : ""}`} style={i === 0 ? { marginTop: 6 } : undefined}>

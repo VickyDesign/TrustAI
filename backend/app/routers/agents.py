@@ -3,18 +3,18 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from .. import db, evaluation
+from .. import db, evaluation, policy, questionnaire
 from ..adapters import call_agent
 from ..auth import Ctx, current_ctx
 from ..common import clean, get_agent, log_activity, public_agent, unique_slug
-from ..risk import APPROVALS_BY_TIER
 from ..schemas import AgentIn, DecisionIn, DeployIn, InvokeIn, TestIn
 from ..security import encrypt
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
 CONNECTION_FIELDS = {"protocol", "endpoint_url", "auth_type", "auth_header", "auth_secret",
-                     "request_template", "response_key", "data_sources", "tools"}
+                     "request_template", "response_key", "data_sources", "tools",
+                     "policy_id", "questionnaire", "test_questions"}
 LOCKED_STATUSES = {"awaiting_approval", "approved", "live", "paused"}
 ROLE_LABEL = {"risk_owner": "Risk owner", "security": "Security", "admin": "Admin"}
 
@@ -68,7 +68,11 @@ async def update_agent(agent_id: str, body: AgentIn, ctx: Ctx = Depends(current_
     agent = await get_agent(ctx, agent_id)
     data = body.model_dump(exclude_unset=True)
     if agent["status"] in LOCKED_STATUSES and CONNECTION_FIELDS & set(data):
-        raise HTTPException(409, "This agent is in release or live. Pause it before changing its connection, data or tools.")
+        raise HTTPException(409, "This agent is in release or live, so its connection, data, tools, policy and "
+                                 "questions are locked.")
+    if data.get("policy_id"):
+        if not await db.fetchrow("select 1 from policies where id=%s and org_id=%s", data["policy_id"], ctx.org_id):
+            raise HTTPException(404, "That policy doesn't exist in this workspace")
     sets, vals = [], []
     for key, value in data.items():
         if key == "auth_secret":
@@ -76,8 +80,12 @@ async def update_agent(agent_id: str, body: AgentIn, ctx: Ctx = Depends(current_
                 sets.append("auth_secret_enc = %s")
                 vals.append(encrypt(value))
             continue
-        if key == "tools":
+        if key == "policy_id" and not value:
+            value = None
+        if key in ("tools", "test_questions"):
             value = db.jsonb(value)
+        if key == "questionnaire":
+            value = db.jsonb(questionnaire.clean_answers(value))
         if key == "name" and value != agent["name"]:
             sets.append("slug = %s")
             vals.append(await unique_slug(ctx.org_id, value, agent_id))
@@ -190,10 +198,10 @@ async def request_approval(agent_id: str, ctx: Ctx = Depends(current_ctx)):
     agent = await get_agent(ctx, agent_id)
     if agent["status"] not in ("evaluated", "rejected"):
         raise HTTPException(409, "The agent needs a passing evaluation before it can be approved")
-    roles = APPROVALS_BY_TIER.get(agent["risk_tier"] or 3, ["risk_owner", "security"])
+    roles = policy.approvals_for((await policy.for_agent(agent))["rules"], agent["risk_tier"])
     await db.execute("delete from approvals where agent_id = %s and status = 'pending'", agent_id)
     if not roles:
-        await db.execute("update agents set status = 'approved', onboarding_step = 4 where id = %s", agent_id)
+        await db.execute("update agents set status = 'approved', onboarding_step = 5 where id = %s", agent_id)
         await log_activity(ctx, agent_id, "approval", "Tier 1 agent, approved by policy")
     else:
         for role in roles:
@@ -201,7 +209,7 @@ async def request_approval(agent_id: str, ctx: Ctx = Depends(current_ctx)):
                 "insert into approvals (org_id, agent_id, required_role, requested_by) values (%s,%s,%s,%s)",
                 ctx.org_id, agent_id, role, ctx.user.id,
             )
-        await db.execute("update agents set status = 'awaiting_approval', onboarding_step = 4 where id = %s", agent_id)
+        await db.execute("update agents set status = 'awaiting_approval', onboarding_step = 5 where id = %s", agent_id)
         await log_activity(ctx, agent_id, "approval",
                            f"Requested approval from {' and '.join(ROLE_LABEL[r].lower() for r in roles)}")
     return await list_approvals(agent_id, ctx)

@@ -3,7 +3,7 @@ import time
 
 from fastapi import APIRouter, Header, HTTPException
 
-from .. import db, guardrails
+from .. import db, guardrails, policy
 from ..adapters import call_agent
 from ..schemas import InvokeIn
 from ..security import hash_key
@@ -53,20 +53,24 @@ async def run_through_gateway(agent: dict, body: InvokeIn) -> dict:
     if agent["status"] != "live":
         raise HTTPException(409, "This agent isn't deployed yet")
 
+    rules = (await policy.for_agent(agent))["rules"]
     t0 = time.perf_counter()
     ms = lambda: int((time.perf_counter() - t0) * 1000)  # noqa: E731
     spans: list[dict] = []
 
-    g_in = guardrails.check_input(body.input)
+    g_in = guardrails.check_input(body.input, rules)
     spans.append({"name": "guardrail.input", "kind": "guardrail", "start_ms": 0, "duration_ms": max(ms(), 1),
                   "attributes": {"actions": g_in.actions}})
     if g_in.blocked:
         total = ms()
         spans.insert(0, {"name": "agent.run", "kind": "agent", "start_ms": 0, "duration_ms": total})
-        rid = await _record(agent, body.session_id, "blocked", total, None, "Blocked by the jailbreak guardrail",
+        topic = next((a.get("kind") for a in g_in.actions if a["type"] == "topic_blocked"), None)
+        reason = (f"Blocked by policy: “{topic}” is a blocked topic." if topic
+                  else "Blocked by the jailbreak guardrail.")
+        rid = await _record(agent, body.session_id, "blocked", total, None, reason,
                             body.input, None, g_in.actions, spans)
         return {"request_id": rid, "output": None, "blocked": True,
-                "reason": "This request was blocked by a guardrail.", "guardrails": g_in.actions, "latency_ms": total}
+                "reason": reason, "guardrails": g_in.actions, "latency_ms": total}
 
     start = ms()
     call = await call_agent(agent, g_in.text, body.session_id)
@@ -77,7 +81,7 @@ async def run_through_gateway(agent: dict, body: InvokeIn) -> dict:
     output = None
     if call.ok:
         g_start = ms()
-        g_out = guardrails.check_output(call.text or "")
+        g_out = guardrails.check_output(call.text or "", rules)
         output = g_out.text
         actions += g_out.actions
         spans.append({"name": "guardrail.output", "kind": "guardrail", "start_ms": g_start,

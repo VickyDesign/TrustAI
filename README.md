@@ -89,6 +89,14 @@ curl -X POST https://<api>/v1/agents/<agent-slug>/invoke \
 
 Credentials can be a bearer token, an API key header, or OAuth 2.0 client credentials. They're encrypted with `ENCRYPTION_KEY` and never returned by the API. For safety, agent URLs that resolve to private or loopback addresses are refused unless `ALLOW_PRIVATE_ENDPOINTS=true`.
 
+## Policies, risk questions and test questions
+
+- **Policies** (sidebar → Policies) are reusable rule sets: guardrails on live traffic (jailbreak blocking, which kinds of personal data to hide, blocked topics), evaluation pass marks, and who approves each risk tier. Every workspace starts with a default **Standard** policy; admins can add more.
+- **Risk questions**: while describing an agent, the owner answers 10 questions. Each feeds one risk dimension and can raise the tier, never lower it below what the tools and data imply.
+- **Test questions**: in the Policy step, add questions with expected answers (typed or uploaded as CSV with columns `question, expected answer`). They run as their own evaluation suite, graded against the policy's pass mark.
+
+Schema changes ship in `backend/app/migrations/` and are applied automatically when the API starts.
+
 ## Risk tiers and approvals
 
 | Tier | Approvals before deploy |

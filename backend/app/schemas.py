@@ -13,6 +13,11 @@ class Tool(BaseModel):
     enabled: bool = True
 
 
+class TestQuestion(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+    expected: str = Field(default="", max_length=4000)
+
+
 class AgentIn(BaseModel):
     """Fields a user can set while onboarding or editing an agent. Every field is optional on update."""
     name: str | None = Field(default=None, min_length=1, max_length=120)
@@ -32,7 +37,10 @@ class AgentIn(BaseModel):
     max_retries: int | None = Field(default=None, ge=0, le=5)
     data_sources: list[str] | None = None
     tools: list[Tool] | None = None
-    onboarding_step: int | None = Field(default=None, ge=1, le=4)
+    policy_id: str | None = None
+    questionnaire: dict[str, str] | None = None
+    test_questions: list[TestQuestion] | None = Field(default=None, max_length=100)
+    onboarding_step: int | None = Field(default=None, ge=1, le=5)
 
 
 class TestIn(BaseModel):
@@ -70,3 +78,9 @@ class JoinIn(BaseModel):
 class OrgIn(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     allow_self_approval: bool | None = None
+
+
+class PolicyIn(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=80)
+    description: str | None = Field(default=None, max_length=400)
+    rules: dict | None = None

@@ -62,7 +62,7 @@ export function RiskPanel({ risk }: { risk: RiskAssessment }) {
           <div className="fact"><small>Highest score</small><b>{risk.highest} of 3</b></div>
           <div className="fact"><small>Average score</small><b>{risk.average.toFixed(2)} of 3</b></div>
           <div className="fact"><small>Approvals needed</small><b>{approvals || "None"}</b></div>
-          <div className="fact"><small>Assessed by</small><b>{risk.method === "llm" ? "Model review" : "Policy rules"}</b></div>
+          <div className="fact"><small>Assessed by</small><b>{risk.questionnaire ? "Owner answers + " : ""}{risk.method === "llm" ? "model review" : "rules"}</b></div>
         </div>
       </div>
       <div className="dims d2">

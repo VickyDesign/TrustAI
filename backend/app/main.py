@@ -6,9 +6,9 @@ import psycopg
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import db
+from . import db, migrate
 from .config import get_settings
-from .routers import agents, demo, gateway, metrics, workspace
+from .routers import agents, demo, gateway, metrics, policies, workspace
 
 
 log = logging.getLogger("trustai")
@@ -59,6 +59,10 @@ async def _check_database() -> None:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     logging.basicConfig(level=logging.INFO)
+    try:
+        await migrate.run()
+    except Exception as e:  # noqa: BLE001  (the health check reports database problems)
+        log.error("Migrations didn't run: %s", str(e).splitlines()[0] if str(e) else type(e).__name__)
     await db.open_pool()
     checker = asyncio.create_task(_check_database())
     yield
@@ -84,6 +88,7 @@ app.include_router(agents.evaluations_router)
 app.include_router(metrics.router)
 app.include_router(gateway.router)
 app.include_router(demo.router)
+app.include_router(policies.router)
 
 
 @app.get("/health", tags=["health"])
