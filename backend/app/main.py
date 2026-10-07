@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import db
 from .config import get_settings
-from .routers import agents, gateway, metrics, workspace
+from .routers import agents, demo, gateway, metrics, workspace
 
 
 @asynccontextmanager
@@ -32,6 +32,7 @@ app.include_router(agents.approvals_router)
 app.include_router(agents.evaluations_router)
 app.include_router(metrics.router)
 app.include_router(gateway.router)
+app.include_router(demo.router)
 
 
 @app.get("/health", tags=["health"])

@@ -67,6 +67,7 @@ Free Render services sleep when idle, so the first request after a pause takes a
 
 - **Create the workspace.** Sign up; the first sign-in creates a workspace and makes you its admin.
 - **Invite people.** Under **Settings > People**, create an invite code. Teammates enter it when they sign up. Give approvers the Risk owner or Security role.
+- **Try the sample agent.** The API has a built-in sample agent. In the wizard, choose HTTP endpoint, enter `https://<api>/demo/agent` as the URL and `plumb-demo` as the bearer token, and leave everything else as it is.
 - **Create a gateway key.** Do this under **Settings > Gateway keys**. Applications call a live agent with:
 
 ```bash
