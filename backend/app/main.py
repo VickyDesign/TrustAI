@@ -26,6 +26,8 @@ def _hint(msg: str) -> str:
         return "The database password in DATABASE_URL is wrong. Reset it in Supabase (Database settings) and update DATABASE_URL."
     if "tenant or user not found" in m:
         return "The user name in DATABASE_URL doesn't match the project. Copy the Session pooler address again from Supabase."
+    if "[your-password]" in m or "]@" in m or "resolve host" in m and "@" in m:
+        return "The password part of DATABASE_URL is malformed. Paste the password again, without square brackets."
     if "translate host" in m or "name or service not known" in m or "nodename" in m:
         return "The server address in DATABASE_URL has a typo. Copy the Session pooler address again from Supabase."
     if "does not exist" in m and "relation" in m:

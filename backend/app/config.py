@@ -1,6 +1,24 @@
 from functools import lru_cache
+from urllib.parse import quote, unquote
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def tidy_database_url(url: str) -> str:
+    """Forgive the usual copy-paste slips in a Postgres URL: [brackets] left around the password,
+    and symbols such as @ # / ? in the password that were not percent-encoded."""
+    url = url.strip().strip('"').strip("'")
+    if "://" not in url or "@" not in url:
+        return url
+    scheme, rest = url.split("://", 1)
+    userinfo, hostpart = rest.rsplit("@", 1)  # the host never contains @, the password may
+    if ":" not in userinfo:
+        return url
+    user, password = userinfo.split(":", 1)
+    # Supabase passwords never contain brackets, so these are leftovers of [YOUR-PASSWORD].
+    password = password.removeprefix("[").removesuffix("]")
+    return f"{scheme}://{user}:{quote(unquote(password), safe='')}@{hostpart}"
 
 
 class Settings(BaseSettings):
@@ -10,6 +28,11 @@ class Settings(BaseSettings):
 
     # Supabase Postgres connection string (Project settings > Database > Connection string).
     database_url: str
+
+    @field_validator("database_url")
+    @classmethod
+    def _tidy_db_url(cls, v: str) -> str:
+        return tidy_database_url(v)
 
     # Supabase project URL, used to fetch the JWT signing keys (JWKS).
     supabase_url: str = ""
