@@ -13,6 +13,9 @@ class Settings(BaseSettings):
 
     # Supabase project URL, used to fetch the JWT signing keys (JWKS).
     supabase_url: str = ""
+    # Supabase anon or publishable key (the same value the frontend uses). Lets the API verify
+    # sessions through Supabase Auth when the project signs tokens with the legacy HS256 secret.
+    supabase_anon_key: str = ""
     # Legacy HS256 JWT secret. Leave empty for projects that use asymmetric signing keys.
     supabase_jwt_secret: str = ""
 
