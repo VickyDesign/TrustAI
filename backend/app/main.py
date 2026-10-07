@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -37,5 +39,12 @@ app.include_router(demo.router)
 
 @app.get("/health", tags=["health"])
 async def health():
-    await db.fetchrow("select 1 as ok")
-    return {"ok": True}
+    """Always answers, so the service can go live and show what's wrong instead of hanging."""
+    try:
+        await asyncio.wait_for(db.fetchrow("select 1 as ok"), timeout=8)
+        return {"ok": True, "database": "connected"}
+    except Exception as e:  # noqa: BLE001
+        msg = str(e).split("\n")[0][:300] or type(e).__name__
+        logging.getLogger("plumb").error("Database check failed: %s", msg)
+        return {"ok": False, "database": f"not connected: {msg}",
+                "hint": "Check DATABASE_URL in Render: use the Session pooler address and your real database password."}
