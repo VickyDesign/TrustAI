@@ -43,6 +43,11 @@ async def invoke(slug: str, body: InvokeIn, authorization: str = Header(default=
     agent = await db.fetchrow("select * from agents where org_id=%s and slug=%s", key["org_id"], slug)
     if not agent:
         raise HTTPException(404, f"No agent at /{slug}")
+    return await run_through_gateway(agent, body)
+
+
+async def run_through_gateway(agent: dict, body: InvokeIn) -> dict:
+    """Apply input guardrails, call the agent, apply output guardrails, and record the trace."""
     if agent["status"] == "paused":
         raise HTTPException(503, "This agent is paused")
     if agent["status"] != "live":

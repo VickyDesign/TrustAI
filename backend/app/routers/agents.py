@@ -8,7 +8,7 @@ from ..adapters import call_agent
 from ..auth import Ctx, current_ctx
 from ..common import clean, get_agent, log_activity, public_agent, unique_slug
 from ..risk import APPROVALS_BY_TIER
-from ..schemas import AgentIn, DecisionIn, DeployIn, TestIn
+from ..schemas import AgentIn, DecisionIn, DeployIn, InvokeIn, TestIn
 from ..security import encrypt
 
 router = APIRouter(prefix="/agents", tags=["agents"])
@@ -272,6 +272,20 @@ async def deploy(agent_id: str, body: DeployIn, ctx: Ctx = Depends(current_ctx))
     await log_activity(ctx, agent_id, "deploy",
                        f"Deployed {agent['version']} to Production, {'gradual rollout' if body.rollout == 'gradual' else 'all traffic'}")
     return public_agent(await get_agent(ctx, agent_id))
+
+
+@router.post("/{agent_id}/try")
+async def try_agent(agent_id: str, body: InvokeIn, ctx: Ctx = Depends(current_ctx)):
+    """Send one message through the gateway from the console, without a gateway key."""
+    from .gateway import run_through_gateway
+    agent = await get_agent(ctx, agent_id)
+    try:
+        return await run_through_gateway(agent, body)
+    except HTTPException as e:
+        if e.status_code == 502 and isinstance(e.detail, dict):
+            return {"request_id": e.detail.get("request_id"), "output": None, "blocked": False,
+                    "error": e.detail.get("error"), "guardrails": [], "latency_ms": None}
+        raise
 
 
 @router.post("/{agent_id}/pause")
